@@ -1,0 +1,221 @@
+fork() + exec()
+- In the Parent : fork() return the PID of the child. This allow the parent to keep track of the offspring 
+- In the Child : fork() returns 0 
+- if we return neg val, error 
+
+Booting Sequence
+- If we are in user mode and we try to access memory outside the Address Space, we crash (Seg fault, OS kills offending process)
+
+
+CPU Scheduling Algorithms 
+- FIFO - first in first out, the process to arrive first is the first to run 
+- SJN - shortest job next, pick the job that will take the least amount of time (may starve)
+- RR - round robin, give each process a small slice(Time Quantum) of cpu time and rotate through them 
+- SRTF - shortest remainig time first, a preemptive version of SJN, if a shorter time job arrives, switch to it immediately (may starve)
+
+Starvation - when a process is ready to run but is ignored because the scheduler has other process that cut in line
+
+Wait Time: total time a process spends in the Ready state waiting for the CPU
+Turnaround Time: the total time from when a process arrives to when it finishes (Completion - Arrival)
+
+Multilevel Feedback Queue (MLFQ) - used by real OS 
+- Multiple Queues: tasks are organized into several queues with different priority levels
+- Priority Rule: the scheduler always the job from the highest - priority queue first 
+- Feedback: The OS adjusts a tasks priority based on its past behavior 
+    - we favor interactive(i/o) over CPU bound tasks
+
+
+Atomic Operations - only happen once, they cannot be stopped halfway through 
+
+Implementing Locks 
+- Disabling Interrupts : CPU stops switching tasks while the thread is in the critical section 
+- Software-only algortihms: Complex algorithms to coordinate threads 
+- Hardware Atomic Instructions: Special CPU commands like "TestAndSet" that check and set a lock value in one uninterruptible step
+- Busy Waiting - sit in loop, constantly check if lock is open 
+- Blocking - cant enter, wake me up when I can 
+
+Semaphores:
+Wait(P): A thread tries to take a permit. if the bowl is empty, the thread blocks and waits
+Signal(V): A thread puts a permit back into the bowl, which might wake up a waiting thread 
+
+Safety: nothing bad happens, no crash or data overwrite
+Liveness: eventually something good happens, like the producer getting to work again 
+Fairness: everyone gets a turn 
+
+Deadlock: processes are perma blocked because each holds anothers resource needed to get unblocked 
+4 Deadlock Conditions: if we can break any 1 of these, we can prevent deadlocks entirely 
+Mutual Exclusion: only one process can use a resource at a time (all share resource, no waiting)
+Hold and Wait: a process is holding at least one resource and is waiting to acquire additional resources held by other processes 
+No Preemption: Resource cannot be forcibly taken from a process; they must be released voluntarily 
+Circular Wait: A closed chain of processes exists, where each process holds a resource needed by the next process in the chain
+
+Deadly Mix: Deadlock vs Starvation 
+Deadlock: a group of processes are all stuck waiting for each other. no one can ever move 
+Starvation: a process is able to run, but the scheduler keeps picking those with higher prio or shorter completion time 
+
+How to Handle deadlocks
+- Prevention: design the system so that one of the 4 requirements can never occur 
+- Avoidance: OS proactively checks every resource request to ensure it wont lead to an unsafe state 
+- Detection and Recovery: let them happnen, find them when they occur, and fix them 
+
+
+**Short Answer Questions** 
+
+**Dispatching Loop & Threads
+- A thread owns a Thread Control Block
+    - has execution state, status(run or sleep), scheduling(prio ie MLFQ)
+- Threads are run from a Dispatching Loop (per CPU thread/background)
+LOOP(Context Switch):
+- Run -> Save -> Choose a new thread to run (scheduling) -> Load states from a different thread 
+How does the dispatcher regain control?
+- Internal event: Yield (voluntarily), thread waiting for IO, thread waiting for another thread
+- External Event: Interrupts, complete storage request, Timer (RR)
+What should a thread save?
+- Anything that the next thread may trash before a context switch, program counter, registers, changes in execution stack
+How does the dispatcher choose the next thread?
+- keeps a list of ready threads, none ready = loop
+- if more than one, use scheduling policy 
+
+
+**Thread state diagram 
+- Each thread can be in 1 of 3 state
+1. Running: has CPU 
+2. Blocked: waiting for IO or other thread 
+3. Ready to run: on the ready list, waiting for CPU
+
+Per-Thread State Diagram:
+
+                  +------------+
+     Create ----->|   Ready    |<---------+
+                  +------------+          |
+                    |                     |
+          Scheduler |                     | I/O complete
+          picks it  |                     | or event
+                    v                     |
+                  +------------+      +------------+
+                  |  Running   |----->|  Blocked   |
+                  +------------+      +------------+
+                    |       |
+          Preempt / |       | Thread
+          Yield     |       | exits
+                    v       v
+              +--------+  +------+
+              | Ready  |  | Exit |
+              +--------+  +------+
+
+Transitions:
+- Ready -> Running : scheduler dispatches thread (context switch in)
+- Running -> Ready : preempted by timer/interrupt, or thread yields
+- Running -> Blocked : thread requests I/O or waits on lock/semaphore/other thread
+- Blocked -> Ready : I/O completes or event occurs (e.g., lock released, signal)
+- Running -> Exit : thread finishes execution or is killed
+Fore Multi-core Machines 
+- each core has dispatcher, one core has global dispatcher
+
+
+
+**Boot Sequence:
+jump to a fixed address in ROM  
+load teh BIOS 
+perform POST 
+load MBR (GPT)
+load the OS loader
+load the kernal image 
+set the kernel mode
+jump to the OS entry point 
+
+
+
+**Benefits of concurrency
+- Resource Utilization: When one application is idle (performing IO operation, file save), 
+another can step in and use the processor 
+- Responsiveness: Users dont have to wait for a long background task to finish before interacting with 
+another program 
+- Speed: Running a computation heavy task alongside a storage-heavy task often results in a shorter 
+total completion time than running them one after the other 
+
+
+
+**Four phases of OS history
+    -OS design goals
+    -Design questions
+
+Phase 1: Hardware Expensive, Humans Cheap 
+- Hardware: mainframes?
+- OS: Human Operator
+    - handle one job(unit of processing) at a time 
+    - computer time wasted while operators walk around the machine room
+- Design Goal: efficient use of hardware 
+    - batch system: collects a batch of jobs before processing them and printing out results 
+        - collection, processing and printing results can occur concurrently    
+    Multiprogramming: multiple programs can run concurrently 
+        - IO bound jobs and CPU bound jobs 
+
+Phase 2: Hardware Cheap, Humans Expensive 
+- Hardware: terminals 
+- OS design goal: more efficient use of human resources 
+    - Timesharing system: each user can afford own terminals to interact with machines 
+
+Phase 3: Hardware Very Cheap, Humans Very Expensive 
+- Hardware: personal computers 
+- OS Design Goal: allowing a user to perform many tasks at the same time 
+    - Multitasking: a single user can run multiple programs on the same machine at the same time 
+    - Multiprocessing: the ability to use multiple processors on the same machine 
+
+Phase 4: Distributed Systems
+- Hardware: computers with networks 
+- OS Design Goal: ease of resource sharing among machines
+
+**Amdahl's Law 
+speedup <= 1/((1-P) + P/N)
+where + is the Parallel percent and N is the number of cores 
+MAX Speedup =  1 / (1-P)
+
+** Program vs Process 
+- Program(recipe): a static collection of statements
+- Process: A running instance of that program (like the actual act of cooking in the kitchen)
+Critical: one program can be used in multiple processes, one complex program can trigger multiple processes
+
+
+
+
+** Definitions**
+Operating system – a virtual machine that hides the complexity and limitations of hardware from application programmers
+Job – A unit of processing for the operating system (commonly batch systems)
+Batch system – a system that collects a batch of jobs before processing them and printing out results
+Timesharing –  a system design goal allowing each user to afford terminals to interact with machines, optimizing for the efficient use of human resources
+
+Thread – a sequential execution stream and the smallest CPU scheduling unit. It can be programmed as if it owns the entire CPU.
+Address space -  Contains all states necessary to run program,
+Includes code, data, stack, program counter, register values and resources required by the program.
+Process – an address space plus at least 1 thread of execution. 
+    - It is a fundamental unit of computation
+Context switch – The process of saving the state of a running process and restoring the state of the next process to run
+
+Uniprogramming – running one process at a time 
+Multiprogramming – running multiple processes on a machine 
+Multithreading – having multiple threads per address space
+Multiprocessing – running programs on a machine with multiple processors(or a multicore processor)
+Multitasking – a single user can run multiple processes
+
+Master boot record – describes the physical layout of the disk and fits into a single 4K-byte disk sector (boot sector). It is stored at the first logical sector of the boot device 
+System call – allows processes running at the user mode to access kernel functions that run under the kernel mode 
+User mode – a mode where an application can only access its own address space
+Kernel mode – a mode where anything goes (full access to hardware and resources)
+
+Starvation – a state where a thread waits indefinitely 
+
+Atomic operation – an operation that always runs to completion; its all or nothing, we cant save and resume
+Race condition – a situation in cooperating threads where the outputs depends on the order and timing of the execution 
+
+Mutual exclusion – a property ensuring that at most one thread is in the critical section at any time 
+Critical section – the segment of code where shared resources are accessed or modified
+
+Busy waiting – hogging CPU cycles while a thread is waiting for a lock 
+
+Semaphore – a type of generalized lock consisting of a nonnegative integer value and two atomic operations, P(free) and V(give)
+
+Safety – at most one thread is in the critical section at any time 
+Liveness – if more than one thread is interested in executing the critical section, processes will eventually do so
+Fairness – every thread that wants to execute the critical section will eventually do so (no starvation)
+
