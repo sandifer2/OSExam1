@@ -445,6 +445,52 @@ Global replacement policy: all pages are in a single pool
     - one process can drag down the entire system 
 Per-process replacement policy: each process has its own pool of pages 
 ============================Device Management============================
+Definitions
+Polling: a cpu repeatedly checks the status of a device for exachanging data 
+    - Simple, but causes busy-waiting (CPU is stuck checking instead of working)
+Interrupt-driven I/O: a device controller notifies the corresponding device driver when the device is available.
+    - More efficient use of CPU cycles, but involves data copying/movement overhead
+    - Slow for character devices(ie 1 interrupt per keyboard keystroke)
+DMA(Direct memory access): uses an additional controller to perform data movements so the CPU is not involved in copying data 
+    - Downside: a process cannot access in-transit data 
+Double buffering: use 2 buffers, while one is being used, the other is being filled
+    - Analogy: pipelining
+    - Extensively used for graphics and animation so a viewer doesnt see line by line scanning
+Device Controller: hardware that converts between a serial bit stream and a block of bytes 
+    - performs error correction if necessary 
+    - has device registers to communicate with the CPU, and a data buffer the OS can read or write 
+Device Driver: an OS component responsible for hiding the complexity of an IO device so the OS can access various devices in a uniform manner 
+
+Memory mapped I/O: makes no distinction between device addresses and memory addresses. 
+    - Devices can be accessed the same way as normal memory, using the same set of hardware instructions (no special instructions)
+
+Disk Platters: coated with magnetic materials for recording 
+Track: each disk platter is divided into concentric tracks
+Disk Arm: moves a comb of disk heads
+    - one disk head is active for reading/writing at a time 
+Sector: a track is divided into sector 
+    - the sector is the smallest unit of disk storage 
+Cylinder: all tracks with given disk arm position across all platters 
+Zone/Zone-bit Recording: cylinders are grouped into zones; zones near the edge store more information 
+Seek Time: time to position disk heads (4ms on avg)
+Rotational Latency: time to rotate the target sector underneath the head    
+    - 4ms average at 7,200 RPM
+Transfer Time: time to transfer bytes once the head is in position 
+    - .07 ms for a 4KB blocks at 300m/s
+Disk Access Time: seek time + rotational latency + transfer Time
+Latency: seek time + rotational delay 
+'Bandwidth: bytes transferred/disk access time 
+
+Flash memory: a form of solid-state memory rimiliar to ROM 
+    - holds data without power
+    - reads are fast, writes are slower, erases are very slow 
+    - has a limited number of erase cycles before degradation(800-100,000)
+NOR Flash: byte addressable can write/erase individual bytes and execute programs 
+    - Erased in flash blocks(4-64)
+    - used in smartphones, digital cameras, thumb drives 
+Flash Translation Layer: handles slow erases by writing a new version elsewhere and erasing the old version later 
+Wear-leveling: trakcs write/erase cycles per page and spreads writes/erases uniformly across storage locations to avoid burning out specific cells 
+Multi-level Cells: use multiple voltage levels to represent bits, increasing density and lowering price/gb
 
 ============================File Systems============================
 
