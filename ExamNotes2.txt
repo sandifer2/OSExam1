@@ -1,0 +1,451 @@
+============================Monitors, Condition Variables and Readers-Writers============================
+Definitions 
+- Monitor: a lock + condition variables 
+- Lock: provides mutual exclusion to shared data 
+- Condition Variable: provides a queue for waiting threads inside a critical section 
+    - make it possible to sleep inside crt section, atomically release lock and go 
+    - consists of a queue of threads
+    - 3 operations:
+        - Wait():
+            - atomically release the lock and go to sleep 
+            - reacquire lock on return 
+        - Signal():
+            - wake up one waiting thread, if any 
+        - Broadcast():
+            - wake up all waiting threads 
+
+Short Answers
+=========Mesa vs Hoare Monitors=========
+- Mesa Monitors: 
+    - used in most real OS 
+    - Signal() only puts a waiting thread on the schedulers ready queue 
+    - by the time the waken thread gets the CPU, teh waiting condition may no longer be true and needs to be retested
+    - Waiting thread joins ready Q, signal condition may be false, need while loop. 
+- Hoare Monitors:
+    - Signal() transfers the CPU to the waiting thread
+    - waiter runs immediately, condition guarenteed to be true when waiter wakes up, if is safe, rare in OS
+=========Reader Writer=========
+    - common in DB applications 
+    - Readers never modify the database 
+    - Writers read and modify the database 
+    - Goal: 1 writer at a time, many readers at the same time 
+Constraints:
+    - a reader should wait when a writer is accessing or waiting for the database 
+        - Condition okToRead
+    - a writer should wait when there is a reader or writer accessing the database 
+        - Condition okToWrite
+    - a reader or writer should wait when someone is modifying global states
+        - Lock lock
+Solution Structure 
+Reader
+- wait until no writers 
+- access db 
+- wake up waiting writers 
+Writer
+- wait until no active readers or writers 
+- access db
+- wake up waiting writer or readers 
+**add to C file 
+Reader() {
+    lock.Acquire();
+    while (activeWriters > 0  || waitingWriters > 0){
+        ++waitingReaders;
+        okToRead.Wait(&lock);
+        --waitingReaders
+    }
+    ++activeReaders;
+    lock.Release();
+
+    //access db
+
+    lock.Acquire();
+    --activeReaders;
+    if(activeReaders == 0 && waitingWriters > 0){
+        okToWrite.Signal(&lock);
+    }
+    lock.Release();
+    
+}
+
+Writer(){
+
+    lock.Acquire();
+    while(activeWriters > 0 || activeReaders > 0){
+        ++waitingWriters;
+        okToWrite.Wait(&lock);
+        --waitingWriters;
+    }
+    ++activeWriters;
+    lock.Release();
+
+    //access db 
+
+    lock.Acquire();
+    --activeWriters;
+    if(waitingWriters > 0 ){
+        okToWrite.Signal(&lock);
+
+    }else if(waitingReaders > 0 ){
+        okToRead.Broadcast(&lock);
+
+    }
+    lock.Release();
+
+}
+
+=========Semiphores vs Monitors=========
+- can't implement monitors with semaphores
+- Condition variables only work inside a lock
+    - using semaphores inside a lock may deadlock 
+- Condition variables have no history but Semaphores do 
+    - Signal() with an empty queue does nothing 
+        - a subsequent Wait() will wait 
+    - V() increments semaphore 
+        - A subsequent P() will not wait 
+    - Wait() will always wait 
+    - P() might not wait 
+
+Summary 
+- Semaphores carry state/history monitors (condition vars) do not 
+- Semaphores used inside locks may deadlock, while monitors (condition vars) are required to be used inside locks
+
+============================Memory Protection============================ 
+
+Definitions
+Interprocess communication: the way processes communicate among address spaces (IPC)
+- Processes can communicate amoung address spaces via IPC 
+    - byte stream 
+    - message passing 
+    - file system 
+    - shared memory 
+- bugs can propagate from one process to another 
+Interprocess Communication 
+- Direct: send(p1, message), receive(p2, message), one-to-one communication
+- Indirect: mailboxes or ports, send(mailboxA, message), receive(mailboxb, message), many-to-many communication
+
+System Call: a user process asks the OS to do something on the process's behalf 
+
+Short Answers
+=========Hardware-supported Mechanisms for Memory Protection=========
+Address Translation
+- each process is associated with an address space, or all the physical addresses a process can touch 
+    - but each process believes it owns the entire memory 
+- a translation table is used to translate every memory reference from virtual to physical addresses
+- translation provides protection 
+    - processes cant talk about other processes addresses, nor about the os addresses 
+    - OS uses physical addresses directly, no translation 
+
+Dual-mode Operation 
+- translation tables offer protection if they cannot be altered by applications 
+- an application can only touch its address space under the user mode 
+- HW requires the CPU to be in the kernal mode to modify the address translation tables 
+- How the CPU is shared between kernal and user processes 
+- How processes interact among themselves
+
+=========Software-supported Mechanisms for Memory Protection=========
+Protection via Strong Typing 
+- programming languages mas disallow the misuse of data structures (casting)
+    -ie Java and LISP
+- Java has its own vms 
+    - can run on different HW and OS 
+
+Protection via Software Fault Isolation 
+- compilers generate code that is provably safe 
+    - ie a pointer cannot reference illegal addresses 
+- with aggressive optimizations, the overhead can be as low as 5%
+
+
+
+=========Steps to switch between kernal and user spaces=========
+Kernal -> User
+- creates a process and initializes the address space 
+- loads the program into the memory 
+- initializes the translation tables 
+- sets HW pointer to the translation table 
+- sets the CPU to user mode
+- jumps to the entry point of the program 
+
+User -> Kernal 
+Voluntary: System calls 
+Involuntary: Hardware interrupts (IO), Program exceptions (Segfault)
+- sets the CPU to kernel mode 
+- saves the current program counter 
+- jumps to the handler in the kernal 
+    - handler saves old register values 
+- save and restore pointers to translation tables
+- kernal reloads old register values 
+
+=========Context switching between processes vs threads=========
+Thread Switch:
+- Save/restore register values
+- NO need to save/restore translation table pointer
+- Threads share the same address space
+
+Process Switch:
+- Save/restore register values
+- MUST save/restore pointers to translation tables
+- Each process has its own address space
+
+Key Difference: The extra cost of process context switching is the 
+translation table swap — threads skip this because they share memory.
+
+
+============================Address Translation============================
+**need to compare and contrast the Translations of each type of addr translation 
+Definitions 
+Segment: a logically contiguous memory region 
+External fragmentation: memory wasted because the available memory is not contiguous for allocation
+Internal fragmentation: allocated pages are not fully used 
+Translation lookaside buffers: store recently translated memory addresses for short-term reuses 
+
+Short Answer 
+=========Base-and-bound translation=========
+- each process is loaded into a contiguous region of physical memory 
+- processes are protected from one another 
+- each process thinks that it owns a dedicated machine, with memory addresses from 0 to bound 
+- an OS can move a process around by copying bits or changing the base and bound registers 
+Pros:
+    - Simplicity 
+    - Speed
+Cons:
+    - External fragmentation
+    - Difficult to share programs: each instance of a program needs to have a copy of the code segment 
+    - Memory allocation is complex 
+        - need to find contiguous chunks of free memory 
+            - First Fit: use the first free memory region thats big enough 
+            - Best fit: use the smallest free memory region 
+            - Worst fit: use the largest free memory region 
+        - reorg involves copying 
+    - does not work well when address spaces grow and shrink dynamically 
+To get physical address:
+1. virtual address is used directly as offset from base
+2. is virtual address > bound? → ERROR
+3. physical address = base + virtual address
+
+
+=========Segmentation-based translation=========
+- use a table of base-and-bound pairs
+- instead of 1 contiguous piece of mem, break it down 
+- given a virtual addr num
+    - 1st 2 bits are segment id 
+    - last 30 bits are offset, convert to hex
+    - check table for each segment id and its bound 
+    - make sure offset < bound, then base + offset to get actual physical address in memory 
+Pros:
+- easier to grow/shrink individual segments 
+- finer control of segment accesses
+    - ie read-only for shared code segment 
+- more efficient use of physical space 
+- multiple processes can share the same code segment 
+Cons:
+- memory allocation still complex
+    - still requires some contiguous allocation 
+
+To get physical address:
+1. split virtual address into [seg#] and [offset]
+   - first 2 bits = seg#
+   - remaining 30 bits = offset
+2. look up seg# in segment table → get physical base address and bound
+3. is offset > bound? → ERROR
+4. physical address = physical base address + offset
+
+=========Paging-based translation=========
+- memory allocation via fixed-size chunks of memory, or pages 
+- uses a bitmap to track the allocation status of memory pages 
+- translation granularity is a page 
+- converts both a programs memory and RAM into fixed sized chunks of 4KB 
+    - when we need to use memory we drop it into a page 
+- each program has a page table where we can look up which pages each chunk of memory lives 
+    - implemented with bitmap  {'page 14': 1, 'page 15':0}
+Program 1's page table        Program 2's page table
+----------------------        ----------------------
+page 0 → slot 4               page 0 → slot 1
+page 1 → slot 6               page 1 → slot 3
+page 2 → slot 9               page 2 → slot 7
+
+Pros:
+- easier memory allocation
+- allows code sharing 
+Cons:
+- Internal fragmentation
+- Large page table 
+    - if 32 bit arch, w 1 kb pages, 4m table entries
+
+To get physical address:
+1. split virtual address into [virtual page#] and [offset]
+   - first 20 bits = virtual page#
+   - last 12 bits = offset
+2. look up virtual page# in page table → get physical page#
+3. physical address = physical page# : offset
+
+=========Segmented-paging translation=========
+- breaks the page table into segments 
+- instead of one giant page table per program, each segment (code, data, stack) gets its own page table
+Virtual Address = [ 3 bits: seg# | 17 bits: virtual page# | 12 bits: offset ]
+Pros:
+    - code sharing 
+    - reduced memory requirements for page tables
+Cons:
+    - higher overhead and complexity 
+    - page tables still need to be contiguous 
+    - two lookups per memory reference 
+
+To get physical address:
+1. split virtual address into [seg#] [virtual page#] [offset]
+   - first 3 bits = seg#
+   - next 17 bits = virtual page#
+   - last 12 bits = offset
+2. look up seg# in segment table → get page table base and bound
+3. is virtual page# > bound? → ERROR
+4. look up virtual page# in that page table → get physical page#
+5. physical address = physical page# + offset
+
+=========Paged page tables========= **
+- two level tree of page tables 
+Virtual Address = [ 12 bits: page table # | 8 bits: virtual page # | 12 bits: offset ]
+
+To get physical address:
+1. split virtual address into [page table#] [virtual page#] [offset]
+   - first 12 bits = page table#
+   - next 8 bits = virtual page#
+   - last 12 bits = offset
+2. look up page table# in outer page table → get address of inner page table
+3. look up virtual page# in inner page table → get physical page#
+4. physical address = physical page# : offset
+
+
+============================Caching and TLBs============================
+Definitions 
+Caching: storing copies of data at places that can accessed more quickly than accessing the original 
+    - speeds up access to frequently used data 
+    - cost: slows down infrequently used data 
+Temporal locality: recently referenced locations are more likely to be referenced soon (ie files)
+Spatial locality: referenced locations tend to be clustered(ie listing all files in a directory)
+Cache pollution: leaving behind cache content with no localities(load data you wont use into cache, get rid of good data )
+Translation lookaside buffer: tracks frequently used translations and avoids translations in the common case
+Virtually addressed cache: between the CPU and the translation tables 
+Physically addressed cache: between the translation tables and the main memory 
+
+=========Design issues of caching========= ** come back 
+- does not work well for programs with little localities
+Effective Metrics 
+    - Cache hit: a lookup is resolved by the context stored in cahce 
+    - Cache miss: a lookup is resolved elsewhere 
+    Effective access time: P(hit)*(hit_cost) + P(miss)*(miss_cost)
+
+How is a cache entry lookup performed?
+Which cache entry should be replaced when teh cache is full?
+How to maintain consistency between teh cache copy and the real data?
+
+=========4 types of Cache misses=========
+Compulsory misses: data brought into the cache for the first time 
+Capacity misses: caused by the limited size of a cache; program may require a data struct that exceeds capacity, RAP, no effective policy 
+Competing cache entries: a cache entry assigned to 2 pieces of data, when both active each will preempt eachother, thrashing 
+Policy misses: caused by the cache replacement policy; which chooses which cache entry to replace when the cache is full, can optimize 
+
+=========Ways to perform TLB lookups=========
+Direct Mapping (Seqential seach of the TLB table): 
+- assigns each virtual page toa  specific slot in the TLB
+    - use upper bits of VPN to index TLB
+- When to use high order bits:
+    - two pages may compete for the same TLB entry, may toss out needed TLB entries 
+- When to use low order bits:
+    - TLB reference will be clustered 
+        - failing to use full range of TLB entries
+Common approach: Combine both 
+
+Set associativity: 
+- uses N TLB banks to perform lookups in parallel: Two-Way Associative Cache 
+- 2 Way Associative means: n = 2, each hash has 2 ways (columns) if we hash into the same slot, we store in the second way 
+-When a lookup comes in for a VPN, the hardware hashes it to find which set (which row), then checks both ways simultaneously using parallel comparators — those are the two = = symbols in your lecture diagram. 
+If either way matches, that's a hit. If neither matches, that's a miss, and one of the two entries gets replaced.
+- best prob 
+
+
+Fully Associative Cache: 
+- allows looking up all TLB entries in parallel
+- no hash when placing VPN into slots, placed into random slots, we lookup by VPN itself in parallel 
+- need Comparator Circut wired to each slot to check if VPN is the VPN we are looking for 
+    - only makes sense in very small caches as Comp circut is expensive hardware wise 
+
+Typically: 
+- TLBS are small and fully associative 
+- Hardware caches use direct mapped or set-associative cache
+
+=========Write-through vs Write-back policies========= 
+Write-through: immediately propagates update through various levels of caching 
+    - for critical data
+Write-back: delays the propogation until the cached item is replaced 
+    - Goal: spread the cost of update propogation over multiple updates 
+    - less costly 
+
+============================Demand Paged Virtual Memory============================
+Definitions
+Demand paging: allows pages that are referenced actively to be loaded into memory 
+    - remaining pages stay on storage 
+    - provides the illusion of infinite physical memory 
+Page fault: when there is no present valid bit in a table entry 
+Transparent: a process does not know how it happened
+    - needs to save the processor states and the faulting instruction 
+    - an instruction may have side effects
+        - hardware needs to either udwind of finish off those side effects
+Belady's anomoly: getting more page faults by increasing the memory size 
+Thrashing: occurs when the memory is overcommitted 
+    - pages that are still needed are tossed out
+Working set: a set of pages that was referenced in the previous T seconds
+
+Short Answers 
+=========Steps to carry out a page fault=========
+1. Choose a page 
+2. if the page has been modified, write its contents to storage 
+3. Change the corresponding page table entry and TLB entry 
+4. Load new page into memory from storage 
+5. Update page table entry 
+6. Continue thread
+
+=========Page replacement policies=========
+Random replacement: replace a random page 
+    - easy to implement in hardware(ie TLB)
+    - may toss useful pages 
+First in, first out(FIFO): toss out oldest page 
+    - fair for all pages 
+    - may toss out pages taht are heavily used 
+Optimal(MIN): replaces the page that will not be used for the longest time 
+    - optimal 
+    - does not know the future 
+Least-recently used(LRU): replaces the page that has not been used for the longest time 
+    - good if past predicts future use 
+    - tricky to implement efficiently 
+
+Least frequently used(LFU): replaces the page that is used least often
+    - tracks usage count of pages 
+    - good if past use predicts future use 
+    - difficult to replace pages with high counts 
+
+Clock Algorithm: reaplces an old page, but not the oldest page 
+    - arranges physical pages in a circle, with a clock hand 
+    - each page has a used bit 
+        - set to 1 on reference 
+        - on page fault sweep clock hand  \
+    - if used bit == 1, set it to 0
+    - if used bit == 0, pick the page for replacement 
+
+Nth Chance Algorithm
+- a variant of clocking algorithm
+    - a page has to be swept N times before being replaced
+    - n-> infinity, Nth chance = LRU 
+    - Common implemntation 
+        - N = 2 for modified pages
+        - N = 1 for unmodified pages 
+
+Global replacement policy: all pages are in a single pool 
+    - one process needs more memory 
+        - grabs memory from another process that needs less 
+    - flexible 
+    - one process can drag down the entire system 
+Per-process replacement policy: each process has its own pool of pages 
+============================Device Management============================
+
+============================File Systems============================
+
+============================Project 2============================
