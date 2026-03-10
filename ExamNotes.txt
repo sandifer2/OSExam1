@@ -7,22 +7,10 @@ Booting Sequence
 - If we are in user mode and we try to access memory outside the Address Space, we crash (Seg fault, OS kills offending process)
 
 
-CPU Scheduling Algorithms 
-- FIFO - first in first out, the process to arrive first is the first to run 
-- SJN - shortest job next, pick the job that will take the least amount of time (may starve)
-- RR - round robin, give each process a small slice(Time Quantum) of cpu time and rotate through them 
-- SRTF - shortest remainig time first, a preemptive version of SJN, if a shorter time job arrives, switch to it immediately (may starve)
-
 Starvation - when a process is ready to run but is ignored because the scheduler has other process that cut in line
 
 Wait Time: total time a process spends in the Ready state waiting for the CPU
 Turnaround Time: the total time from when a process arrives to when it finishes (Completion - Arrival)
-
-Multilevel Feedback Queue (MLFQ) - used by real OS 
-- Multiple Queues: tasks are organized into several queues with different priority levels
-- Priority Rule: the scheduler always the job from the highest - priority queue first 
-- Feedback: The OS adjusts a tasks priority based on its past behavior 
-    - we favor interactive(i/o) over CPU bound tasks
 
 
 Atomic Operations - only happen once, they cannot be stopped halfway through 
@@ -61,80 +49,6 @@ How to Handle deadlocks
 
 **Short Answer Questions** 
 
-**Dispatching Loop & Threads
-- A thread owns a Thread Control Block
-    - has execution state, status(run or sleep), scheduling(prio ie MLFQ)
-- Threads are run from a Dispatching Loop (per CPU thread/background)
-LOOP(Context Switch):
-- Run -> Save -> Choose a new thread to run (scheduling) -> Load states from a different thread 
-How does the dispatcher regain control?
-- Internal event: Yield (voluntarily), thread waiting for IO, thread waiting for another thread
-- External Event: Interrupts, complete storage request, Timer (RR)
-What should a thread save?
-- Anything that the next thread may trash before a context switch, program counter, registers, changes in execution stack
-How does the dispatcher choose the next thread?
-- keeps a list of ready threads, none ready = loop
-- if more than one, use scheduling policy 
-
-
-**Thread state diagram 
-- Each thread can be in 1 of 3 state
-1. Running: has CPU 
-2. Blocked: waiting for IO or other thread 
-3. Ready to run: on the ready list, waiting for CPU
-
-Per-Thread State Diagram:
-
-                  +------------+
-     Create ----->|   Ready    |<---------+
-                  +------------+          |
-                    |                     |
-          Scheduler |                     | I/O complete
-          picks it  |                     | or event
-                    v                     |
-                  +------------+      +------------+
-                  |  Running   |----->|  Blocked   |
-                  +------------+      +------------+
-                    |       |
-          Preempt / |       | Thread
-          Yield     |       | exits
-                    v       v
-              +--------+  +------+
-              | Ready  |  | Exit |
-              +--------+  +------+
-
-Transitions:
-- Ready -> Running : scheduler dispatches thread (context switch in)
-- Running -> Ready : preempted by timer/interrupt, or thread yields
-- Running -> Blocked : thread requests I/O or waits on lock/semaphore/other thread
-- Blocked -> Ready : I/O completes or event occurs (e.g., lock released, signal)
-- Running -> Exit : thread finishes execution or is killed
-Fore Multi-core Machines 
-- each core has dispatcher, one core has global dispatcher
-
-
-
-**Boot Sequence:
-jump to a fixed address in ROM  
-load teh BIOS 
-perform POST 
-load MBR (GPT)
-load the OS loader
-load the kernal image 
-set the kernel mode
-jump to the OS entry point 
-
-
-
-**Benefits of concurrency
-- Resource Utilization: When one application is idle (performing IO operation, file save), 
-another can step in and use the processor 
-- Responsiveness: Users dont have to wait for a long background task to finish before interacting with 
-another program 
-- Speed: Running a computation heavy task alongside a storage-heavy task often results in a shorter 
-total completion time than running them one after the other 
-
-
 
 **Four phases of OS history
     -OS design goals
@@ -166,16 +80,244 @@ Phase 4: Distributed Systems
 - Hardware: computers with networks 
 - OS Design Goal: ease of resource sharing among machines
 
-**Amdahl's Law 
-speedup <= 1/((1-P) + P/N)
-where + is the Parallel percent and N is the number of cores 
-MAX Speedup =  1 / (1-P)
+
+
+**Benefits of concurrency
+- Resource Utilization: When one application is idle (performing IO operation, file save), 
+another can step in and use the processor 
+- Responsiveness: Users dont have to wait for a long background task to finish before interacting with 
+another program 
+- Speed: Running a computation heavy task alongside a storage-heavy task often results in a shorter 
+total completion time than running them one after the other 
+
 
 ** Program vs Process 
 - Program(recipe): a static collection of statements
 - Process: A running instance of that program (like the actual act of cooking in the kitchen)
 Critical: one program can be used in multiple processes, one complex program can trigger multiple processes
 
+
+
+**Dispatching Loop & Threads
+- A thread owns a Thread Control Block
+    - has execution state, status(run or sleep), scheduling(prio ie MLFQ)
+- Threads are run from a Dispatching Loop (per CPU thread/background)
+LOOP(Context Switch):
+- Run -> Save -> Choose a new thread to run (scheduling) -> Load states from a different thread 
+How does the dispatcher regain control?
+- Internal event: Yield (voluntarily), thread waiting for IO, thread waiting for another thread
+- External Event: Interrupts, complete storage request, Timer (RR)
+What should a thread save?
+- Anything that the next thread may trash before a context switch, program counter, registers, changes in execution stack
+How does the dispatcher choose the next thread?
+- keeps a list of ready threads, none ready = loop
+- if more than one, use scheduling policy 
+
+
+**Thread state diagram 
+- Each thread can be in 1 of 3 state
+1. Running: has CPU 
+2. Blocked: waiting for IO or other thread 
+3. Ready to run: on the ready list, waiting for CPU
+
+Per-thread State Diagram
+
+                      ┌─────────┐
+                      │ Running │
+                      └─────────┘
+                     ╱  │       ╲
+                    ╱   │        ╲
+           Scheduled    │         I/O request
+                  ╱     │          ╲
+                 ╱  Yield,timer     ╲
+                v       │            v
+            ┌───────┐   │        ┌─────────┐
+            │ Ready │ ◄─┘        │ Blocked │
+            └───────┘            └─────────┘
+                ▲                     │
+                │    I/O complete     │
+                └─────────────────────┘
+
+
+
+Running:  has the CPU
+Blocked:  waiting for I/O or another thread
+Ready to run:  on the ready list, waiting for the CPU
+
+Transitions:
+- Ready -> Running : scheduler dispatches thread (context switch in)
+- Running -> Ready : preempted by timer/interrupt, or thread yields
+- Running -> Blocked : thread requests I/O or waits on lock/semaphore/other thread
+- Blocked -> Ready : I/O completes or event occurs (e.g., lock released, signal)
+- Running -> Exit : thread finishes execution or is killed
+Fore Multi-core Machines 
+- each core has dispatcher, one core has global dispatcher
+
+
+**Amdahl's Law 
+speedup <= 1/((1-P) + P/N)
+where + is the Parallel percent and N is the number of cores 
+MAX Speedup =  1 / (1-P)
+
+
+
+
+**Boot Sequence:
+jump to a fixed address in ROM  
+load teh BIOS 
+perform POST 
+load MBR (GPT)
+load the OS loader
+load the kernal image 
+set the kernel mode
+jump to the OS entry point 
+
+
+**System Call Sequence
+trap instruction -> set kernal mode -> branch table -> run trusted code
+- we execute a trap instruction when we need a kernal function, we switch the cpu from user to kernal mode
+and jump to a handler in the trap table 
+
+**Process Creation 
+Process 1
+Origin: instantiated from init program or systemd
+Ancestor: this process is an ancestor of every other process on the computer 
+Runlevel Management: It controls transitions between runlevels and executes the necessary start/shutdown scripts for each
+New Processes:
+fork() - clone of parent process 
+- Simplifies passing parameters like env vars from parent to child, 
+- uses copy on write, only copy memory when a process tries to modify it 
+exec() - starts new program b
+
+
+** Preemptive vs Nonpreemptive Scheduling 
+- main difference is who deceides when a process stops using the CPU 
+Nonpreemptive: process keeps running on the CPU until finishes or gets blocked (IO) or yields. Voluntarily gives up CPU
+Preemptive: the scheduler can force a process to leave the CPU even if it hasnt finished, allowing another process to run 
+    - triggered by timer interrupts
+
+
+
+**CPU Scheduling Algorithms 
+- FIFO - first in first out, the process to arrive first is the first to run 
+- SJN - shortest job next, pick the job that will take the least amount of time (may starve)
+- RR - round robin, give each process a small slice(Time Quantum) of cpu time and rotate through them 
+- SRTF - shortest remainig time first, a preemptive version of SJN, if a shorter time job arrives, switch to it immediately (may starve)
+
+Multilevel Feedback Queue (MLFQ) - used by real OS 
+- Multiple Queues: tasks are organized into several queues with different priority levels
+- Priority Rule: the scheduler always the job from the highest - priority queue first 
+- Feedback: The OS adjusts a tasks priority based on its past behavior 
+    - we favor interactive(i/o) over CPU bound tasks
+
+Lottery Scheduling - give more tickets to shorter CPU time jobs, less to higher cpu time jobs, run lottery and 
+run job whose ticket was called 
+
+**Goals for Scheduler: Achieve Fairness
+Maximize 
+CPU utilization:  keep the CPU as busy as possible
+Throughput:  the number of processes completed per unit time
+Minimize 
+Response time:  the time of submission to the time the first response is produced
+Wait time:  total time spent waiting in the ready queue
+Turnaround time:  the time of submission to the time of completion 
+
+**Independent Threads 
+No states shared with other threads
+Deterministic computation
+- Output depends on input
+Reproducible 
+- Output does not depend on the order and timing of other threads
+Scheduling order does not matter
+e.g., gif2jpeg
+
+**Cooperating Threads 
+Shared states
+Nondeterministic
+Nonreproducible
+e.g., elevator controllers
+Why use them when they add complexity? Speedup(concurrency, parallel) and modularity(smaller, manageable tasks)
+
+**Too Much Milk Solution 3
+Dumb
+// leave Dumb’s note
+while (Dumber’s note) { };
+if (no milk) {
+	// go get milk
+}
+// remove Dumb’s note
+
+Dumber
+// leave Dumber’s note
+if (no Dumb’s note) {
+  if (no milk) {
+    // go get milk
+  }
+}
+// remove Dumber’s note
+
+
+**Implementing Locks 
+1. Disabling Interrupts(Uniprocessor) - Aquire and Release
+    - make operations atomic by preventing context switch 
+    - Aquire() disables interrupts, Release() enables them 
+    - Busy-Waiting: check if value is FREE, if not, enable interrupt to allow other threads to run before reenabling interrupt 
+    - Problem: User level may never re enable interrupts, OS lose control, doesnt work on multiprocessor, cpu cores can enter still 
+2. Atomic Hardware Instructions (test_and_set)
+    - test_and_set atomically reads a mem location, sets it to 1 (BUSY) and returns old value 
+    - Implemenataion: thread calls while(test_and_set(value)==1), busy waits until val becomes 0 
+    - hogs CPU cycles 
+3. No Busy Waiting - Waiting Queues 
+ - put threads to sleep rather than busy waiting 
+    - if lock is not FREE, thread is added to waiting queue and goes to sleep 
+    - when a thread releases the lock, it checks the queue, if another thread is waiting, wake them up and place them in ready queue 
+    - multiprocessor version: use guard to minimize busy waiting while we manage queue and lock value 
+**Semaphores vs Integers 
+- No Negative Values 
+- Only have 2 operations P(take) and V(give)
+    - cannot read or write directly except during intial setup 
+- Cannot read or write semaphore values, Except at the initialization times
+- Operations are atomic
+    - Two P() calls cannot decrement the value below zero
+    - A sleeping thread at P() cannot miss a wakeup from V()
+
+**2 Uses of Semaphores 
+1. Mutual Exclusion 
+    - only one thread can access a critical section at a time 
+    - init value = 1, call P() to lock before critical section, V() to release 
+2. Scheduling 
+    - used to coordiante the order of exeecution between different threads 
+        - init value = 0 
+        - one thread waits at a P() operation until another thread signals it is ready by calling V() 
+
+** Producer/Consumer : Bounded Buffer 
+- 3 Semaphores
+    - mutex = 1, only 1 thread manipulates buffer at a time 
+    - nFreeBuffers = N, tracks empty spaces, producer waits until the buffer is full
+    - nLoadedBuffers = 0, tracks items in buffer, consumer waits if buffer is empty 
+
+correct Producer/Consumer 
+// Semaphore full = 1;  (Counts full slots)
+// Semaphore empty = 0; (Counts empty slots) usually N not 0 
+// Semaphore mutex = 1; (Protecting the buffer)
+//Standard Producer code
+void Producer(){
+    P(empty);
+    P(mutex);
+    // Add item to buffer 
+    V(mutex);
+    V(full);
+}
+// Standard Consumer code
+void Consumer() {
+    P(full);   // Wait for a full slot full = 0 
+    P(mutex);  // Lock the buffer [cite: 74, 75] mutex alr = 0 
+    
+    // Remove item from buffer
+    
+    V(mutex);
+    V(empty);
+}
 
 
 
