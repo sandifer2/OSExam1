@@ -486,7 +486,7 @@ Transfer Time: time to transfer bytes once the head is in position
     - .07 ms for a 4KB blocks at 300m/s
 Disk Access Time: seek time + rotational latency + transfer Time
 Latency: seek time + rotational delay 
-'Bandwidth: bytes transferred/disk access time 
+Bandwidth: bytes transferred/disk access time 
 
 =========Flash Terms=========
 Flash memory: a form of solid-state memory rimiliar to ROM 

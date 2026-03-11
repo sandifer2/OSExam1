@@ -1,0 +1,157 @@
+=====HW5=====
+1. Which style of monitor directly transfers control from the thread invoking 
+signal() the waken thread?
+A1 = Hoare Style 
+A2 = Mesa style 
+A = Hoare style
+
+
+2. if wait(&lock) is invoked after signal(&lock) is invoked, the wait call will...
+A1 = Wait 
+A2 = Continue 
+A = Wait 
+
+3. Do we always have a deadlock if all four conditions are met?
+A1 = Yes 
+A2 = No 
+A = No 
+
+=====HW6=====
+1. When starting a program, what happens after each step to switch from 
+KERNAL -> USER 
+create a process and initialize the address space
+load the program into memory
+initialize translation table 
+set the HW pointer to the translation table 
+set the CPU to user mode 
+jump to the entry point of the program 
+
+2. Suppose you have a 16-bit machine with a page size of 16B(bytes). **ADDRESS TRANSLATION**
+Assume that any unsigned integer can be a potential memory address. 
+Also assume that the machine can support up to only 32KB of physical memory (1k = 2^10)
+
+page_table = {
+    virtual_page_0: physical_frame_998
+} one entry per virtual page 
+
+Need:
+Page offset - tells you where within page the byte is. The number of offset bits is determined by the page size (in this instance 16 bytes)
+VPN or Virtual Page Number: tells you which page, this is the index into the page table 
+Number of distinct VPNS = the number of page table entries you need
+
+Given: 16 bit machine -> virtual addr 16 bits long -> virtual addr space = 2^16 = 65,536 bytes 
+
+1. Find offset bits 
+Page size = 16B = 2^4, so you need 4 bits for the page offset 
+2. Figure out the VPN bits 
+16 - 4  = 12 bits for the virtual page number 
+3. Count table entries 
+Each unique VPN needs its own entry, and 12 bits gives you:
+2 ^ 12 = 4096 page table entries 
+
+3. Suppose you have a 16-bit machine with a page size of 16B. Assume that any unsigned integer can be a potential memory address. 
+Also, assume that the machine can support up to only 32KB of physical memory. (1K =210).
+Translate the virtual address 0x0000 to its physical address (base 16) via the segmented-paging scheme.  
+Assume that a program has two segments and a page size of 16B.  
+
+Given: 16 bit machine, 16B(byte) page size, 2 segments 
+
+1. Figure out virtual address layout 
+Offset bits: page size = 16B  = 2^4 = 4 bits 
+Segment bits: 2 segment ->  2^1 = 1 bit (top bit)
+VPN Bits: 16  - 4 - 1 = 11 bits (middle)
+| 1 bit seg| 11 bits VPN | 4 bits offset | 
+
+2. Decompose 0x0000
+Binary: 0000 0000 0000 0000 
+Seg bit: top 1 = 0 -> Segment 0 
+VPN(next 11):0000 0000 0000 -> VPN 0x000
+Offset(bottom 4): 0000 -> Offset 0x0 
+ 
+3. Segment table lookup 
+Segment bit = 0
+so segment number = 0 (2 segments)
+From segment table we gather 
+Page Table base = 0x8000
+Page Table bound = 0x8 (8 valid pages)
+So we go to the page table stored at physical 0x8000
+
+4. Page table lookup
+VPN = 0x000, at page table 0x8000
+VPN 0x000 maps to physical page 0x100
+
+5. Build the physical address
+Physical page number: 0x100 -> binary: 0001 0000 0000
+Offset: 0x0 -> binary: 0000
+Answer: 0x1000
+
+0x10B 
+
+4. Suppose you have a 16-bit machine with a page size of 16B. Assume that any unsigned integer can be a potential memory address. 
+Also, assume that the machine can support up to only 32KB of physical memory. (1K = 210)
+Translate the virtual address 0x0003 to its physical address (base 16) via the segmented-paging scheme.   
+Assume that a program has two segments and a page size of 16B.  
+1. 0x0003 → Seg = 0, VPN = 0x000, Offset = 0x3
+2. Segment table[0] → page table at 0x8000
+3. Page table[0x000] → physical page 0x100
+4. Physical address = 0x100 concat 0x3 = 0x1003 ✅
+
+5. Suppose you have a 16-bit machine with a page size of 16B. Assume that any unsigned integer can be a potential memory address. 
+Also, assume that the machine can support up to only 32KB of physical memory. (1K = 210)
+Translate the virtual address 0x8020 to its physical address (base 16) via the segmented-paging scheme.   
+Assume that a program has two segments and a page size of 16B.  
+1. 0x8020 → Seg = 1, VPN = 0x002, Offset = 0x0
+2. Segment table[1] → page table at 0x0000
+3. Page table[0x002] → physical page 0x508
+4. Physical address = 0x508 concat 0x0 = 0x5080 ✅
+
+
+6. Matching
+Caching: pstoring copies of data at places that can be accessed more quickly 
+Temporal Locality: Recently referenced locations are more likely to be referenced 
+Spatial Locality: reference locations tend to be clustered 
+Cache pollution: leaving behind cache content with no localities 
+Compulsory misses: data brought into the cache for the first time 
+Capacity misses: caused by the limited size of a cache 
+Write-through caching policy: immediately propagates update through various level of caching 
+
+7. What is the effective access time of memory (in decimals) through L1 and L2 caches for the following hardware characteristics?
+Effective Access Time (EAT) = (prob_L1_hit * cost_L1_hit) + (prob_L2_hit * cost_L2_hit) + (prob_memory * cost_memory)
+
+Given:          Access Time             Cache hit rate
+L1 cache        1 clock cycle           3/4
+L2 cache        3 clock cycle           3/4
+Memory          4 clock cycle           1
+
+L1 = (3/4 ), cost = 1, prob = 1/4 miss
+L2 = (3/4 * 1/4), cost = 4, prob = 3/16 miss
+Memory = (1/4 * 1/4 * 1), cost = 8, prob = 1/16 miss
+
+EAT = ((3/4 * 1) + (3/16 * 4) + (1/16 * 8)) = 3/4 + 3/4 + 1/2 
+= 6/4 + 2/4 = 8/4 = 2 clock cycles 
+
+=====HW 7=====
+
+1. Matching 
+
+
+
+2. For the following reference stream, what is the content of page 2 at the end of the reference stream under MIN?
+
+3. For the following reference stream, what is the content of page 2 at the end of the reference stream under LRU?
+
+4. For the following reference stream, what is the content of page 2 at the end of the reference stream under LFU?
+
+5. Matching 
+
+6. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
+If the driver uses the FIFO, which request will be serviced last?
+
+7. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
+If the driver uses the SSTF, which request will be serviced last?
+
+8. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
+If the driver uses the SCAN, which request will be serviced last?  If there are multiple answers, pick the answer with the lowest block number.
+
+9. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
+If the driver uses the C-SCAN, which request will be serviced last?
