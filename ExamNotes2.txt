@@ -444,8 +444,10 @@ Global replacement policy: all pages are in a single pool
     - flexible 
     - one process can drag down the entire system 
 Per-process replacement policy: each process has its own pool of pages 
+
 ============================Device Management============================
 Definitions
+=========I/O Access Methods=========
 Polling: a cpu repeatedly checks the status of a device for exachanging data 
     - Simple, but causes busy-waiting (CPU is stuck checking instead of working)
 Interrupt-driven I/O: a device controller notifies the corresponding device driver when the device is available.
@@ -455,7 +457,9 @@ DMA(Direct memory access): uses an additional controller to perform data movemen
     - Downside: a process cannot access in-transit data 
 Double buffering: use 2 buffers, while one is being used, the other is being filled
     - Analogy: pipelining
-    - Extensively used for graphics and animation so a viewer doesnt see line by line scanning
+    - Extensively used for graphics and animation so a viewer doesnt see line by line 
+    
+=========Device Hardware Abstractions=========
 Device Controller: hardware that converts between a serial bit stream and a block of bytes 
     - performs error correction if necessary 
     - has device registers to communicate with the CPU, and a data buffer the OS can read or write 
@@ -464,6 +468,7 @@ Device Driver: an OS component responsible for hiding the complexity of an IO de
 Memory mapped I/O: makes no distinction between device addresses and memory addresses. 
     - Devices can be accessed the same way as normal memory, using the same set of hardware instructions (no special instructions)
 
+=========Disk Terms=========
 Disk Platters: coated with magnetic materials for recording 
 Track: each disk platter is divided into concentric tracks
 Disk Arm: moves a comb of disk heads
@@ -472,6 +477,8 @@ Sector: a track is divided into sector
     - the sector is the smallest unit of disk storage 
 Cylinder: all tracks with given disk arm position across all platters 
 Zone/Zone-bit Recording: cylinders are grouped into zones; zones near the edge store more information 
+
+=========Disk Measurement Metrics=========
 Seek Time: time to position disk heads (4ms on avg)
 Rotational Latency: time to rotate the target sector underneath the head    
     - 4ms average at 7,200 RPM
@@ -481,6 +488,7 @@ Disk Access Time: seek time + rotational latency + transfer Time
 Latency: seek time + rotational delay 
 'Bandwidth: bytes transferred/disk access time 
 
+=========Flash Terms=========
 Flash memory: a form of solid-state memory rimiliar to ROM 
     - holds data without power
     - reads are fast, writes are slower, erases are very slow 
@@ -492,6 +500,80 @@ Flash Translation Layer: handles slow erases by writing a new version elsewhere 
 Wear-leveling: trakcs write/erase cycles per page and spreads writes/erases uniformly across storage locations to avoid burning out specific cells 
 Multi-level Cells: use multiple voltage levels to represent bits, increasing density and lowering price/gb
 
+Short Answers 
+=========Categories of I/O devices=========
+Block Device: stores information in fixed-size blcoks, each one with its own address 
+    - ie disks 
+Character Device: delivers or accepts a stream of characters, and individual characters are not addressable 
+Network Device: transmits data packets 
+
+
+=========Ways to access a device=========
+Interrupt-drive I/Os: a device controller notifies the correspoding device driver when the device is available 
+    - more efficient use of CPU cycles 
+    - data copying and movements are **?
+    - slow for character devices(one interrupt per keyboard input)
+Direct memory access(DMA): uses an additional controller to perform data movements 
+    - CPU is not involved in copying data 
+    - a process cannot acess in-transit data 
+Double buffering: uses 2 buffers
+    - while one is being used, the other is being filled 
+    - Analogy: pipelining
+    - Extensively used for graphics and animation
+        - so a viewer does not see the line-by-line scanning
+
+=========Disk arm scheduling policies=========
+First come, first serve(FCFS): requests are served in the order of arrival 
+    - fair among requesters 
+    - poor for acceses to random disk blocks 
+Shortest seek time frist(SSTF): picks the request that is closest to the current disk arm position 
+    - good at reducing seeks 
+    - may result in starvation 
+    - SSTF is NOT optimal 
+SCAN: takes teh closest request in the direction of travel(an example of elevator algortihm)
+    - no starvation 
+    - a new request can wait for almost two full scans of the disk 
+Circular SCAN(C-SCAN): disk arm always serves requests by scanning in one direction 
+    - once the arm finishes scanning for one direction 
+    - returns to the 0th track for the next round of scanning 
+
+=========Latency and bandwidth computations=========
+Latency = SEEK_TIME + ROTATIONAL_DELAY 
+Bandwidth = BYTES_TRANSFERRED / DISK_ACCESS_TIME 
+
+
 ============================File Systems============================
 
+Short Answers
+=========What is Inode(file header)=========
+An inode is a file header that associates a file with its disk blocks.
+it stores teh locations of the data blocks that make up the file. 
+In multilevel indexed allocation (like Linux ext3), 
+the inode contains:
+12 direct pointers -> points straight to data blocks 
+1 single indirect pointer -> points to an index block full of data block pointers 
+1 double indirect pointer -> points to a block of signle indirect blocks 
+1 triple indirect pointer -> points to a block of double indirect blocks
+
+=========Calculate how many bits can be stored given an Inode=========
+Need to know: Block Size and Pointer Size 
+Pointers per index blokc = Block size / Pointer size 
+
+
+=========Explain why multilevel indexed allocation are good for small and large files=========
+
+
+
+
+
 ============================Project 2============================
+
+Definitions
+Kernal Modeule:
+
+Short Answers 
+=========Steps to add a system call=========
+
+=========Write code=========
+
+=========Change 4 files========= 
