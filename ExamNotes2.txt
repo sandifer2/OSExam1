@@ -5,7 +5,7 @@ Definitions
 - Condition Variable: provides a queue for waiting threads inside a critical section 
     - make it possible to sleep inside crt section, atomically release lock and go 
     - consists of a queue of threads
-    - 3 operations:
+    - 3 operations, can only be used inside lock:
         - Wait():
             - atomically release the lock and go to sleep 
             - reacquire lock on return 
@@ -16,12 +16,12 @@ Definitions
 
 Short Answers
 =========Mesa vs Hoare Monitors=========
-- Mesa Monitors: 
+- Mesa Monitors: while loop
     - used in most real OS 
     - Signal() only puts a waiting thread on the schedulers ready queue 
-    - by the time the waken thread gets the CPU, teh waiting condition may no longer be true and needs to be retested
-    - Waiting thread joins ready Q, signal condition may be false, need while loop. 
-- Hoare Monitors:
+    - by the time the waken thread gets the CPU, the waiting condition may no longer be true and needs to be retested
+        - Waiting thread joins ready Q, signal condition may be false, need while loop. 
+- Hoare Monitors: if statement
     - Signal() transfers the CPU to the waiting thread
     - waiter runs immediately, condition guarenteed to be true when waiter wakes up, if is safe, rare in OS
 =========Reader Writer=========
@@ -155,7 +155,6 @@ Protection via Software Fault Isolation
 - with aggressive optimizations, the overhead can be as low as 5%
 
 
-
 =========Steps to switch between kernal and user spaces=========
 Kernal -> User
 - creates a process and initializes the address space 
@@ -166,14 +165,19 @@ Kernal -> User
 - jumps to the entry point of the program 
 
 User -> Kernal 
-Voluntary: System calls 
-Involuntary: Hardware interrupts (IO), Program exceptions (Segfault)
-- sets the CPU to kernel mode 
-- saves the current program counter 
-- jumps to the handler in the kernal 
+Triggers:
+    - Voluntary: System calls 
+    - Involuntary: Hardware interrupts (IO), Program exceptions (Segfault)
+HW Atomically:
+    - sets the CPU to kernel mode 
+    - saves the current program counter 
+    - jumps to the handler in the kernal 
     - handler saves old register values 
-- save and restore pointers to translation tables
-- kernal reloads old register values 
+To switch among processes:
+    - save and restore pointers to translation tables
+To resume process execution:
+    - kernal reloads old register values 
+
 
 =========Context switching between processes vs threads=========
 Thread Switch:
@@ -266,10 +270,12 @@ page 2 → slot 9               page 2 → slot 7
 Pros:
 - easier memory allocation
 - allows code sharing 
+- Can be generalized into multi-level paging
 Cons:
 - Internal fragmentation
 - Large page table 
     - if 32 bit arch, w 1 kb pages, 4m table entries
+- Multiple memory lookups required to translate a virtual address (can be accelerated with TLBs)
 
 To get physical address:
 1. split virtual address into [virtual page#] and [offset]
@@ -313,6 +319,22 @@ To get physical address:
 3. look up virtual page# in inner page table → get physical page#
 4. physical address = physical page# : offset
 
+=== Address Translation Quick Comparison ===
+
+Scheme          | VA Format                        | Fragmentation | Sharing | Lookups | PA Formula
+----------------|----------------------------------|---------------|---------|---------|----------------------------------
+Base-and-bound  | [virtual address]                | External      | Poor    | 1       | base + VA (check VA < bound)
+Segmentation    | [seg#][offset]                   | External      | Good    | 1       | seg_table[seg#].base + offset
+Paging          | [VPN][offset]                    | Internal      | Good    | 1       | page_table[VPN] : offset
+Segmented-paging| [seg#][VPN][offset]              | Internal      | Good    | 2       | seg_table[seg#] → PT; PT[VPN] : offset
+Paged page table| [PT#][VPN][offset]               | Internal      | Good    | 2       | outer_PT[PT#] → inner_PT; inner_PT[VPN] : offset
+
+Key patterns:
+- Base-and-bound / Segmentation use ADDITION (base + offset)
+- All paging-based schemes use CONCATENATION (page# : offset)
+- More levels = better memory efficiency for page tables, but more lookups per reference
+- External frag → contiguous allocation schemes; Internal frag → fixed-size page schemes
+
 
 ============================Caching and TLBs============================
 Definitions 
@@ -326,52 +348,68 @@ Translation lookaside buffer: tracks frequently used translations and avoids tra
 Virtually addressed cache: between the CPU and the translation tables 
 Physically addressed cache: between the translation tables and the main memory 
 
-=========Design issues of caching========= ** come back 
+=========Design issues of caching=========
 - does not work well for programs with little localities
+
 Effective Metrics 
-    - Cache hit: a lookup is resolved by the context stored in cahce 
+    - Cache hit: a lookup is resolved by the content stored in cache 
     - Cache miss: a lookup is resolved elsewhere 
     Effective access time: P(hit)*(hit_cost) + P(miss)*(miss_cost)
+        - note: miss_cost includes the cost of checking the current level + cost of going to next level
 
-How is a cache entry lookup performed?
-Which cache entry should be replaced when teh cache is full?
-How to maintain consistency between teh cache copy and the real data?
+Three key design questions:
+1. How is a cache entry lookup performed?
+    → covered in "Ways to perform TLB lookups" section
 
-=========4 types of Cache misses=========
+2. Which cache entry should be replaced when the cache is full?
+    - Direct mapping: entry replaced whenever VPN mismatches
+    - Associative caches: random, LRU, or MRU depending on reference patterns
+    - Hardware-level: TLB replacement is mostly random (simple and fast)
+    - Software-level: memory page replacements are more sophisticated (CPU cycles vs cache hit rate tradeoff)
+
+3. How to maintain consistency between the cache copy and the real data?
+    - Different processes have different page tables, so TLB entries need to be invalidated on context switches
+    - Alternative: tag TLB entries with process IDs (extra hardware cost and comparisons per lookup)
+    - Write-through vs write-back policies (see below)
+
+=========4 types of Cache misses========= C-3PO
 Compulsory misses: data brought into the cache for the first time 
 Capacity misses: caused by the limited size of a cache; program may require a data struct that exceeds capacity, RAP, no effective policy 
 Competing cache entries: a cache entry assigned to 2 pieces of data, when both active each will preempt eachother, thrashing 
 Policy misses: caused by the cache replacement policy; which chooses which cache entry to replace when the cache is full, can optimize 
 
 =========Ways to perform TLB lookups=========
-Direct Mapping (Seqential seach of the TLB table): 
-- assigns each virtual page toa  specific slot in the TLB
+Sequential Search:
+- brute force: check each TLB entry one by one
+- simplest approach
+
+Direct Mapping:
+- assigns each virtual page to a specific slot in the TLB
     - use upper bits of VPN to index TLB
-- When to use high order bits:
-    - two pages may compete for the same TLB entry, may toss out needed TLB entries 
-- When to use low order bits:
-    - TLB reference will be clustered 
+- When using only high order bits:
+    - two pages may compete for the same TLB entry, may toss out needed TLB entries
+- When using only low order bits:
+    - TLB reference will be clustered
         - failing to use full range of TLB entries
-Common approach: Combine both 
+- Common approach: combine both
 
-Set associativity: 
-- uses N TLB banks to perform lookups in parallel: Two-Way Associative Cache 
-- 2 Way Associative means: n = 2, each hash has 2 ways (columns) if we hash into the same slot, we store in the second way 
--When a lookup comes in for a VPN, the hardware hashes it to find which set (which row), then checks both ways simultaneously using parallel comparators — those are the two = = symbols in your lecture diagram. 
-If either way matches, that's a hit. If neither matches, that's a miss, and one of the two entries gets replaced.
-- best prob 
+Set Associativity:
+- uses N TLB banks to perform lookups in parallel
+- 2-Way Associative means: each hash maps to a set (row) with 2 ways (columns)
+    - if we hash into the same slot, we store in the second way
+- When a lookup comes in for a VPN, hardware hashes to find which set (row),
+  then checks both ways simultaneously using parallel comparators
+    - if either way matches → hit
+    - if neither matches → miss, one of the two entries gets replaced
 
-
-Fully Associative Cache: 
+Fully Associative Cache:
 - allows looking up all TLB entries in parallel
-- no hash when placing VPN into slots, placed into random slots, we lookup by VPN itself in parallel 
-- need Comparator Circut wired to each slot to check if VPN is the VPN we are looking for 
-    - only makes sense in very small caches as Comp circut is expensive hardware wise 
+- all entries are checked simultaneously via comparator circuits wired to each slot
+    - only makes sense for very small caches, as comparator circuits are expensive hardware-wise
 
-Typically: 
-- TLBS are small and fully associative 
+Typically:
+- TLBs are small and fully associative
 - Hardware caches use direct mapped or set-associative cache
-
 =========Write-through vs Write-back policies========= 
 Write-through: immediately propagates update through various levels of caching 
     - for critical data
@@ -392,6 +430,8 @@ Transparent: a process does not know how it happened
 Belady's anomoly: getting more page faults by increasing the memory size 
 Thrashing: occurs when the memory is overcommitted 
     - pages that are still needed are tossed out
+    - LRU and MIN are immune — adding RAM always reduces misses (memory content of X pages is a subset of X+1 pages)
+    - FIFO is susceptible — due to modulo math
 Working set: a set of pages that was referenced in the previous T seconds
 
 Short Answers 
@@ -416,6 +456,10 @@ Optimal(MIN): replaces the page that will not be used for the longest time
 Least-recently used(LRU): replaces the page that has not been used for the longest time 
     - good if past predicts future use 
     - tricky to implement efficiently 
+    - how LRU can be implemented: 
+        - one way is timestamps on each reference (too expensive)
+        - alternative is a stack (move referenced page to top, discard bottom when needed)
+        - Common practice is to approximate LRU behavior — which is exactly what the Clock algorithm does
 
 Least frequently used(LFU): replaces the page that is used least often
     - tracks usage count of pages 
@@ -437,6 +481,11 @@ Nth Chance Algorithm
     - Common implemntation 
         - N = 2 for modified pages
         - N = 1 for unmodified pages 
+
+Used bit: set when page is referenced; cleared by clock algorithm
+Modified bit: set when page is modified; cleared when page is written to storage
+Valid bit: set when a program can legitimately use this entry
+Read-only: set for a program to read the page but not modify it (e.g., code pages)
 
 Global replacement policy: all pages are in a single pool 
     - one process needs more memory 
@@ -468,6 +517,11 @@ Device Driver: an OS component responsible for hiding the complexity of an IO de
 Memory mapped I/O: makes no distinction between device addresses and memory addresses. 
     - Devices can be accessed the same way as normal memory, using the same set of hardware instructions (no special instructions)
 
+Device Addressing: two approaches
+    Dedicated device addresses: a separate range of device addresses in physical memory
+        - requires special hardware instructions associated with individual devices
+    Memory-mapped I/O: makes no distinction between device addresses and memory addresses
+        - devices can be accessed the same way as normal memory, using the same set of hardware instructions (no special instructions)
 =========Disk Terms=========
 Disk Platters: coated with magnetic materials for recording 
 Track: each disk platter is divided into concentric tracks
@@ -493,9 +547,12 @@ Flash memory: a form of solid-state memory rimiliar to ROM
     - holds data without power
     - reads are fast, writes are slower, erases are very slow 
     - has a limited number of erase cycles before degradation(800-100,000)
-NOR Flash: byte addressable can write/erase individual bytes and execute programs 
-    - Erased in flash blocks(4-64)
-    - used in smartphones, digital cameras, thumb drives 
+NOR Flash: byte-addressable, can write/erase individual bytes, can execute programs
+    - used in cellular phones and PDAs
+    - mostly replaced by DRAM + NAND flash
+NAND Flash: page-addressable (1 flash page ≈ 1 disk block, 1-4KB), cannot run programs
+    - erased in flash blocks (4-64 pages, may not be atomic)
+    - used in smartphones, digital cameras, thumb drives
 Flash Translation Layer: handles slow erases by writing a new version elsewhere and erasing the old version later 
 Wear-leveling: trakcs write/erase cycles per page and spreads writes/erases uniformly across storage locations to avoid burning out specific cells 
 Multi-level Cells: use multiple voltage levels to represent bits, increasing density and lowering price/gb
@@ -511,8 +568,9 @@ Network Device: transmits data packets
 =========Ways to access a device=========
 Interrupt-drive I/Os: a device controller notifies the correspoding device driver when the device is available 
     - more efficient use of CPU cycles 
-    - data copying and movements are **?
+    - data copying and movements are are overhead
     - slow for character devices(one interrupt per keyboard input)
+dedicated/separate device addresses: requires special hardware instructions associated with individual devices. 
 Direct memory access(DMA): uses an additional controller to perform data movements 
     - CPU is not involved in copying data 
     - a process cannot acess in-transit data 
@@ -521,6 +579,8 @@ Double buffering: uses 2 buffers
     - Analogy: pipelining
     - Extensively used for graphics and animation
         - so a viewer does not see the line-by-line scanning
+Polling: a cpu repeatedly checks the status of a device for exachanging data 
+    - Simple, but causes busy-waiting (CPU is stuck checking instead of working)
 
 =========Disk arm scheduling policies=========
 First come, first serve(FCFS): requests are served in the order of arrival 
@@ -534,6 +594,7 @@ SCAN: takes teh closest request in the direction of travel(an example of elevato
     - no starvation 
     - a new request can wait for almost two full scans of the disk 
 Circular SCAN(C-SCAN): disk arm always serves requests by scanning in one direction 
+    - always reaches both ends 
     - once the arm finishes scanning for one direction 
     - returns to the 0th track for the next round of scanning 
 
@@ -556,24 +617,63 @@ the inode contains:
 1 triple indirect pointer -> points to a block of double indirect blocks
 
 =========Calculate how many bits can be stored given an Inode=========
-Need to know: Block Size and Pointer Size 
-Pointers per index blokc = Block size / Pointer size 
+Need to know: Block Size and Pointer Size
+Pointers per index block = Block size / Pointer size
+Total addressable blocks =
+12 (direct) + N (single indirect) + N² (double indirect) + N³ (triple indirect)
+where N = pointers per index block
+Max file size = Total addressable blocks × Block size
+Example: 4KB blocks, 4-byte pointers → N = 4096/4 = 1024
+Max = (12 + 1024 + 1024² + 1024³) × 4KB ≈ 4TB
 
 
 =========Explain why multilevel indexed allocation are good for small and large files=========
+Why it's good for small files: 
+Small files are accessed efficiently via the first 12 direct pointers — only one disk access needed to reach the data block (no indirection).
 
+Why it's good for large files: 
+Large files can grow incrementally by allocating indirect blocks only as needed — you don't pay the overhead of indirect blocks until the file actually needs them.
+Missing cons worth noting:
 
-
-
+Multiple disk accesses needed to fetch a data block under triple indirect block
+File size is capped by the number of pointers
+Arbitrary file size boundaries among levels
 
 ============================Project 2============================
 
 Definitions
-Kernal Modeule:
+Kernal Modeule: a portion(s) of the kernal that can be dynamically loaded and unloaded 
 
 Short Answers 
 =========Steps to add a system call=========
+Write the system call function (the actual code implementing what the syscall does)
+Register it in the kernel by modifying the necessary files (see below)
+Rebuild/recompile the kernel
+Test the system call from a user-space program
 
 =========Write code=========
+SYSCALL_DEFINE1(my_syscall, int, value)
+{
+    printk(KERN_INFO "my_syscall called with value: %d\n", value);
+    return value * 2;
+}
+
+// test_syscall.c
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+// Your assigned syscall number (from the syscall table you modified)
+#define __NR_my_syscall 548  // whatever number you were assigned
+
+int main() {
+    long result = syscall(__NR_my_syscall, 21);
+    printf("System call returned: %ld\n", result);
+    return 0;
+}
 
 =========Change 4 files========= 
+System call table (e.g., arch/x86/entry/syscalls/syscall_64.tbl) — add a new entry mapping a syscall number to your function name
+System call header (e.g., include/linux/syscalls.h) — add the function prototype/declaration for your new syscall
+Makefile (e.g., in the directory where your syscall code lives) — make sure your new source file gets compiled into the kernel
+Your syscall source file (e.g., kernel/my_syscall.c) — the actual implementation of the system call

@@ -133,6 +133,11 @@ EAT = ((3/4 * 1) + (3/16 * 4) + (1/16 * 8)) = 3/4 + 3/4 + 1/2
 =====HW 7=====
 
 1. Matching 
+Demand Paging: Allowing pages that are referenced actively to be loaded into Memory
+Page Fault: a referenced page is not in memory
+Belady's anomoly: adding more memory results in more page faults 
+Thrashing: when the memory is overcommitted 
+Working Set: pages that are referenced within T seconds 
 
 
 
@@ -146,9 +151,14 @@ EAT = ((3/4 * 1) + (3/16 * 4) + (1/16 * 8)) = 3/4 + 3/4 + 1/2
 
 6. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
 If the driver uses the FIFO, which request will be serviced last?
+A= 70 
+Why: we are using a queue with first in first out, since 70 is the last request in the queue it will be serviced last 
 
 7. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
 If the driver uses the SSTF, which request will be serviced last?
+A=10
+Why: We use SSTF, this chooses the request closest to the head by value, since 10 is the least closest to 46, 
+it will be serviced last 
 
 8. At a given moment, the disk head is at cylinder 46, and the queue contains cylinder requests: 10, 45, 52, 56, 70.
 If the driver uses the SCAN, which request will be serviced last?  If there are multiple answers, pick the answer with the lowest block number.
